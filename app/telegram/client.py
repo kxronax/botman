@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import getpass
 import logging
-import sys
 from typing import Any, Optional
 
 from telethon import TelegramClient
@@ -57,6 +56,29 @@ def build_client(settings: Settings) -> TelegramClient:
     )
 
 
+NO_INPUT_MESSAGE = (
+    "This session is not authorised and there is nobody to type the login code.\n"
+    "Log in once somewhere interactive (your computer, Termux, or a Colab/Replit\n"
+    "notebook), run `python main.py --export-session`, and put the result in this\n"
+    "host's SESSION_STRING environment variable. See README, 'Запуск с телефона'."
+)
+
+
+def _prompt(question: str, hidden: bool = False) -> str:
+    """Ask the user something, failing with a clear message when nobody can answer.
+
+    Deliberately does not test ``sys.stdin.isatty()``: notebooks such as Google
+    Colab report no tty but do accept ``input()``, and that is a perfectly good
+    place to do the one-off login from a phone. Only an actual EOFError proves
+    there is no one there.
+    """
+    try:
+        value = getpass.getpass(question) if hidden else input(question)
+    except (EOFError, OSError) as exc:
+        raise SystemExit(NO_INPUT_MESSAGE) from exc
+    return value.strip()
+
+
 async def authorize(client: TelegramClient, settings: Settings) -> Any:
     """Connect and, on first run, walk through the login flow.
 
@@ -69,15 +91,6 @@ async def authorize(client: TelegramClient, settings: Settings) -> Any:
         me = await client.get_me()
         return me
 
-    if not sys.stdin.isatty():
-        # Typical on Railway or under systemd: nobody can type the login code.
-        raise SystemExit(
-            "This session is not authorised and there is no terminal to log in from.\n"
-            "Log in once on your own machine with `python main.py`, then run\n"
-            "`python main.py --export-session` and put the result in the host's\n"
-            "SESSION_STRING environment variable (see README, Railway section)."
-        )
-
     print()
     print("=" * 62)
     print("  First run — Telegram authorisation required")
@@ -86,7 +99,7 @@ async def authorize(client: TelegramClient, settings: Settings) -> Any:
     print("  Nothing you type here is written to the log file.")
     print()
 
-    phone = settings.phone or input("Phone number (international format, e.g. +49…): ").strip()
+    phone = settings.phone or _prompt("Phone number (international format, e.g. +49…): ")
 
     try:
         await client.send_code_request(phone)
@@ -94,14 +107,14 @@ async def authorize(client: TelegramClient, settings: Settings) -> Any:
         raise SystemExit("That phone number is not valid. Check the international format.")
 
     while True:
-        code = input("Login code from Telegram: ").strip()
+        code = _prompt("Login code from Telegram: ")
         try:
             await client.sign_in(phone=phone, code=code)
             break
         except errors.SessionPasswordNeededError:
             # Two-factor authentication is enabled on the account.
             while True:
-                password = getpass.getpass("Two-step verification password (hidden): ")
+                password = _prompt("Two-step verification password (hidden): ", hidden=True)
                 try:
                     await client.sign_in(password=password)
                     break

@@ -18,7 +18,7 @@
 5. [Установка Python](#5-установка-python)
 6. [Установка зависимостей](#6-установка-зависимостей)
 7. [Создание .env](#7-создание-env)
-8. [Запуск](#8-запуск)
+8. [Запуск](#8-запуск) — включая [запуск с телефона](#запуск-с-телефона-без-компьютера)
 9. [Авторизация](#9-авторизация)
 10. [Настройка архивного чата](#10-настройка-архивного-чата)
 11. [Первоначальный импорт](#11-первоначальный-импорт)
@@ -365,6 +365,103 @@ Monitoring chats… (press Ctrl+C to stop)
 ```
 
 Остановка — `Ctrl+C`. Программа доработает очередь и корректно завершится.
+
+### Запуск с телефона (без компьютера)
+
+Главное, что стоит понять сразу: **телефон нужен только один раз** — чтобы
+залогиниться в Telegram и получить `SESSION_STRING`. Дальше архиватор крутится
+на Railway круглосуточно, и телефон ему больше не нужен.
+
+Держать сам архиватор на телефоне — плохая идея, и вот честная причина: Android
+убивает фоновые процессы при экономии батареи, Termux засыпает вместе с
+экраном, а iOS фоновый Python не даёт в принципе. Полнота архива напрямую
+зависит от непрерывности работы: всё, что удалят, пока программа спит,
+пропадёт навсегда. Поэтому телефон — для настройки, сервер — для работы.
+
+#### Шаг 1. API_ID и API_HASH
+
+Откройте <https://my.telegram.org> в браузере телефона (см. раздел 4).
+Мобильная версия сайта работает нормально.
+
+#### Шаг 2. Получить SESSION_STRING
+
+Нужен Python ровно на пять минут. Два варианта.
+
+**Вариант А — Google Colab. Работает и на Android, и на iPhone, ставить ничего
+не надо.** Откройте <https://colab.research.google.com>, создайте новый
+блокнот и выполните одну ячейку:
+
+```python
+!pip -q install telethon
+from telethon import TelegramClient
+from telethon.sessions import StringSession
+
+api_id = int(input("API_ID: "))
+api_hash = input("API_HASH: ")
+
+client = TelegramClient(StringSession(), api_id, api_hash)
+await client.start()          # спросит телефон, код и пароль 2FA
+print("\nSESSION_STRING:\n" + client.session.save())
+```
+
+Colab поддерживает `await` на верхнем уровне, поэтому `await client.start()`
+работает как есть. Если версия среды вдруг ругается на `await`, добавьте в
+начало ячейки `!pip -q install nest_asyncio` и `import nest_asyncio;
+nest_asyncio.apply()`.
+
+⚠️ Скопируйте строку и **удалите блокнот сразу после этого**: Colab сохраняет
+вывод ячеек, а `SESSION_STRING` — это полный доступ к вашему аккаунту.
+
+**Вариант Б — Termux (только Android).** Более «взрослый» путь, заодно можно
+всё потрогать локально:
+
+```bash
+pkg install python git
+git clone https://github.com/kxronax/botman
+cd botman
+git checkout claude/telegram-personal-archiver-3iob11
+pip install -r requirements.txt
+cp .env.example .env
+nano .env                      # вписать API_ID и API_HASH
+python main.py --export-session
+```
+
+Если `cryptg` не соберётся (нужен компилятор) — либо `pkg install clang`, либо
+просто удалите эту строку из `requirements.txt`, всё будет работать и без неё.
+
+#### Шаг 3. Узнать ARCHIVE_CHAT_ID с телефона
+
+1. Создайте в Telegram приватный канал (Новое сообщение → Создать канал →
+   Частный канал), без других участников.
+2. Отправьте в него любое сообщение.
+3. Перешлите это сообщение боту **@userinfobot** — он ответит id канала.
+4. Убедитесь, что id начинается с `-100`. Если бот показал `1234567890` без
+   минуса, значит нужный id — это `-1001234567890`.
+
+#### Шаг 4. Railway через браузер телефона
+
+1. <https://railway.app> → **New Project** → **Deploy from GitHub repo** →
+   выбрать `kxronax/botman`.
+2. В настройках сервиса выбрать ветку
+   `claude/telegram-personal-archiver-3iob11` (или сначала смержить её в `main`).
+3. **Variables** → добавить:
+
+   ```
+   API_ID=...
+   API_HASH=...
+   SESSION_STRING=...     (из шага 2)
+   ARCHIVE_CHAT_ID=-100...
+   DATA_DIR=/data
+   MAX_MEDIA_SIZE_MB=256
+   ```
+
+4. **Volume** → mount path `/data`. Без этого база, медиа и сессия исчезают
+   при каждом рестарте.
+5. Deploy. В логах должно появиться `Connected as @…` и `Monitoring chats…`.
+
+Первоначальный импорт истории с Railway запускается разово: временно поменяйте
+Start Command на `python main.py --import --limit 500`, дождитесь окончания в
+логах и верните обратно `python main.py`.
 
 ---
 
