@@ -1,0 +1,17 @@
+# Telegram MTProto client library (official client API, same as a desktop app).
+Telethon==1.36.0
+
+# Configuration from .env files.
+python-dotenv==1.0.1
+
+# Storage layer. SQLAlchemy keeps the code portable from SQLite to PostgreSQL.
+SQLAlchemy[asyncio]==2.0.36
+aiosqlite==0.20.0
+
+# Optional but strongly recommended: a C implementation of Telegram's crypto.
+# Makes media downloads several times faster. Remove this line if your host
+# cannot build C extensions — everything still works, just slower.
+cryptg==0.4.0
+
+# Uncomment to use PostgreSQL instead of SQLite:
+# asyncpg==0.30.0

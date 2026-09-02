@@ -1,0 +1,29 @@
+[project]
+name = "telegram-personal-archiver"
+version = "1.0.0"
+description = "Personal Telegram archiver for your own account: local archive + private archive chat"
+requires-python = ">=3.10"
+dependencies = [
+    "Telethon==1.36.0",
+    "python-dotenv==1.0.1",
+    "SQLAlchemy[asyncio]==2.0.36",
+    "aiosqlite==0.20.0",
+]
+
+[project.optional-dependencies]
+fast = ["cryptg==0.4.0"]
+postgres = ["asyncpg==0.30.0"]
+
+[project.scripts]
+telegram-archiver = "app.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
